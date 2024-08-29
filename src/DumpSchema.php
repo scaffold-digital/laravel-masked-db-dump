@@ -80,7 +80,7 @@ class DumpSchema
 
         $connectionParams = [
             'dbname' => $this->getConnection()->getDatabaseName(),
-            'user' => $this->getConnection()->getConfig('user'),
+            'user' => $this->getConnection()->getConfig('username'),
             'password' => $this->getConnection()->getConfig('password'),
             'host' => $this->getConnection()->getConfig('host'),
             'driver' => $driver,
