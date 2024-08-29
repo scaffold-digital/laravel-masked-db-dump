@@ -2,9 +2,11 @@
 
 namespace BeyondCode\LaravelMaskedDumper;
 
-use Faker\Factory;
-use Doctrine\DBAL\Schema\Table;
 use BeyondCode\LaravelMaskedDumper\TableDefinitions\TableDefinition;
+use Doctrine\DBAL\Configuration;
+use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Schema\Table;
+use Faker\Factory;
 use Illuminate\Support\Facades\DB;
 
 class DumpSchema
@@ -15,6 +17,18 @@ class DumpSchema
 
     protected $loadAllTables = false;
     protected $customizedTables = [];
+
+    protected array $driverMapping = [
+        'db2'        => 'ibm_db2',
+        'mssql'      => 'pdo_sqlsrv',
+        'mysql'      => 'pdo_mysql',
+        'mysql2'     => 'pdo_mysql', // Amazon RDS, for some weird reason
+        'postgres'   => 'pdo_pgsql',
+        'postgresql' => 'pdo_pgsql',
+        'pgsql'      => 'pdo_pgsql',
+        'sqlite'     => 'pdo_sqlite',
+        'sqlite3'    => 'pdo_sqlite',
+    ];
 
     public function __construct($connectionName = null)
     {
@@ -55,6 +69,30 @@ class DumpSchema
         return DB::connection($this->connectionName);
     }
 
+    public function getDoctrineConnection()
+    {
+        $driverName = $this->getConnection()->getDriverName();
+        $driver = $this->driverMapping[$driverName] ?? null;
+
+        if (!$driver) {
+            throw new \Exception("Unsupported driver: $driverName");
+        }
+
+        $connectionParams = [
+            'dbname' => $this->getConnection()->getDatabaseName(),
+            'user' => $this->getConnection()->getConfig('user'),
+            'password' => $this->getConnection()->getConfig('password'),
+            'host' => $this->getConnection()->getConfig('host'),
+            'driver' => $driver,
+            'port' => $this->getConnection()->getConfig('port'),
+            'charset' => $this->getConnection()->getConfig('charset'),
+        ];
+
+        $config = new Configuration();
+
+        return DriverManager::getConnection($connectionParams, $config);
+    }
+
     protected function getTable(string $tableName)
     {
         $table = collect($this->availableTables)->first(function (Table $table) use ($tableName) {
@@ -82,7 +120,7 @@ class DumpSchema
             return;
         }
 
-        $this->availableTables = $this->getConnection()->getDoctrineSchemaManager()->listTables();
+        $this->availableTables = $this->getDoctrineConnection()->createSchemaManager()->listTables();
     }
 
     public function load()
